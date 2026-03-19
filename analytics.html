@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Search Analytics</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Arial, sans-serif; background: #f4f6f9; color: #333; }
+  .header { background: #1a2b4a; color: white; padding: 16px 24px;
+            display: flex; align-items: center;
+            justify-content: space-between; }
+  .header h1 { font-size: 20px; font-weight: 600; }
+  .header a { color: #90caf9; font-size: 14px; text-decoration: none; }
+  .container { max-width: 1200px; margin: 24px auto; padding: 0 16px; }
+  .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr);
+                gap: 16px; margin-bottom: 24px; }
+  .stat-card { background: white; border-radius: 10px; padding: 20px;
+               box-shadow: 0 2px 8px rgba(0,0,0,0.08); text-align: center; }
+  .stat-number { font-size: 36px; font-weight: 700; color: #1a2b4a; }
+  .stat-label { font-size: 13px; color: #888; margin-top: 4px; }
+  .section { background: white; border-radius: 10px; padding: 20px;
+             box-shadow: 0 2px 8px rgba(0,0,0,0.08); margin-bottom: 20px; }
+  .section-title { font-size: 16px; font-weight: 700; margin-bottom: 16px;
+                   padding-bottom: 8px; border-bottom: 2px solid #eee;
+                   color: #1a2b4a; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { background: #f0f4f8; text-align: left; padding: 10px 12px;
+       font-weight: 600; color: #555; }
+  td { padding: 10px 12px; border-bottom: 1px solid #f0f0f0;
+       vertical-align: top; }
+  tr:hover td { background: #fafbfc; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 10px;
+           font-size: 11px; font-weight: 600; }
+  .badge-red { background: #ffebee; color: #c62828; }
+  .badge-green { background: #e8f5e9; color: #2e7d32; }
+  .badge-orange { background: #fff3e0; color: #e65100; }
+  .loading { text-align: center; padding: 40px; color: #888; }
+  .no-data { text-align: center; padding: 20px; color: #aaa;
+             font-style: italic; }
+  .refresh-btn { background: #1a2b4a; color: white; border: none;
+                 border-radius: 6px; padding: 8px 16px;
+                 cursor: pointer; font-size: 13px; }
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>Search Analytics</h1>
+  <div style="display:flex;gap:16px;align-items:center">
+    <button class="refresh-btn" onclick="loadData()">Refresh</button>
+    <a href="/">Back to Search</a>
+  </div>
+</div>
+<div class="container">
+  <div id="content">
+    <div class="loading">Loading analytics...</div>
+  </div>
+</div>
+<script>
+async function loadData() {
+  document.getElementById('content').innerHTML =
+    '<div class="loading">Loading analytics...</div>';
+  try {
+    var res = await fetch('/api/analytics');
+    var data = await res.json();
+    if (data.error) {
+      document.getElementById('content').innerHTML =
+        '<div class="section"><pre>' + data.error + '\n' + (data.traceback || '') + '</pre></div>';
+      return;
+    }
+    render(data);
+  } catch(e) {
+    document.getElementById('content').innerHTML =
+      '<div class="section">Failed to load: ' + e.message + '</div>';
+  }
+}
+
+function fmt(val, decimals) {
+  if (val === null || val === undefined) return '0';
+  return parseFloat(val).toFixed(decimals || 0);
+}
+
+function render(data) {
+  var s = data.stats || {};
+  var total = s.TotalSearches || 0;
+  var zeroCount = s.ZeroResultSearches || 0;
+  var zeroPct = total > 0 ? fmt(zeroCount / total * 100, 1) : '0.0';
+
+  var html = '<div class="stats-grid">';
+  html += '<div class="stat-card"><div class="stat-number">' +
+    total + '</div><div class="stat-label">Total Searches</div></div>';
+  html += '<div class="stat-card"><div class="stat-number">' +
+    fmt(s.AvgResults, 1) +
+    '</div><div class="stat-label">Avg Results Per Search</div></div>';
+  html += '<div class="stat-card"><div class="stat-number" ' +
+    'style="color:#c62828">' + zeroCount +
+    '</div><div class="stat-label">Zero Results (' +
+    zeroPct + '%)</div></div>';
+  html += '<div class="stat-card"><div class="stat-number">' +
+    fmt(s.AvgConfidence, 1) +
+    '%</div><div class="stat-label">Avg Confidence</div></div>';
+  html += '</div>';
+
+  html += '<div class="section"><div class="section-title">Most Searched Terms</div>';
+  if (data.top_searches && data.top_searches.length > 0) {
+    html += '<table><tr><th>Query</th><th>Searches</th><th>Avg Results</th><th>Avg Confidence</th></tr>';
+    data.top_searches.forEach(function(r) {
+      var conf = parseFloat(r.AvgConfidence || 0);
+      var badge = conf >= 70 ? 'badge-green' : conf >= 40 ? 'badge-orange' : 'badge-red';
+      html += '<tr><td><strong>' + r.SearchQuery + '</strong></td>';
+      html += '<td>' + r.Searches + '</td>';
+      html += '<td>' + fmt(r.AvgResults, 1) + '</td>';
+      html += '<td><span class="badge ' + badge + '">' + fmt(conf, 1) + '%</span></td></tr>';
+    });
+    html += '</table>';
+  } else {
+    html += '<div class="no-data">No searches yet</div>';
+  }
+  html += '</div>';
+
+  html += '<div class="section"><div class="section-title">Zero Result Searches — Products You May Be Missing</div>';
+  if (data.no_results && data.no_results.length > 0) {
+    html += '<table><tr><th>Query</th><th>AI Interpreted As</th><th>Expanded Keywords</th><th>Time</th></tr>';
+    data.no_results.forEach(function(r) {
+      var d = new Date(r.SearchTimestamp);
+      html += '<tr><td><strong>' + r.SearchQuery + '</strong></td>';
+      html += '<td>' + (r.ClaudeInterpretation || '—') + '</td>';
+      html += '<td style="color:#2e7d32;font-size:12px">' + (r.ExpandedKeywords || '—') + '</td>';
+      html += '<td style="color:#888;font-size:12px">' + d.toLocaleDateString() + ' ' + d.toLocaleTimeString() + '</td></tr>';
+    });
+    html += '</table>';
+  } else {
+    html += '<div class="no-data">No zero-result searches yet</div>';
+  }
+  html += '</div>';
+
+  html += '<div class="section"><div class="section-title">Recent Employee Feedback</div>';
+  if (data.recent_feedback && data.recent_feedback.length > 0) {
+    html += '<table><tr><th>Query</th><th>Result Shown</th><th>Feedback</th><th>Time</th></tr>';
+    data.recent_feedback.forEach(function(r) {
+      var d = new Date(r.FeedbackTimestamp);
+      html += '<tr><td>' + r.SearchQuery + '</td>';
+      html += '<td>' + r.ResultItem + '</td>';
+      html += '<td><span class="badge ' + (r.WasHelpful ? 'badge-green' : 'badge-red') + '">' +
+        (r.WasHelpful ? '👍 Helpful' : '👎 Wrong') + '</span></td>';
+      html += '<td style="color:#888;font-size:12px">' + d.toLocaleDateString() + '</td></tr>';
+    });
+    html += '</table>';
+  } else {
+    html += '<div class="no-data">No feedback yet</div>';
+  }
+  html += '</div>';
+
+  html += '<div class="section"><div class="section-title">Top Synonym Expansions Used by AI</div>';
+  if (data.top_expansions && data.top_expansions.length > 0) {
+    html += '<table><tr><th>Expanded Keywords</th><th>Times Used</th></tr>';
+    data.top_expansions.forEach(function(r) {
+      html += '<tr><td style="color:#2e7d32">' + r.ExpandedKeywords + '</td><td>' + r.Uses + '</td></tr>';
+    });
+    html += '</table>';
+  } else {
+    html += '<div class="no-data">No expansions logged yet</div>';
+  }
+  html += '</div>';
+
+  document.getElementById('content').innerHTML = html;
+}
+
+loadData();
+</script>
+</body>
+</html>

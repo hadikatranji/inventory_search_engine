@@ -1,0 +1,5 @@
+.env
+*.pyc
+__pycache__/
+product_images/
+.DS_Store

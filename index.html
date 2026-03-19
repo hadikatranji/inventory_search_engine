@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Inventory Search</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Arial, sans-serif; background: #f4f6f9; color: #333; }
+  .header { background: #1a2b4a; color: white; padding: 16px 24px; }
+  .header h1 { font-size: 20px; font-weight: 600; }
+  .container { max-width: 1200px; margin: 24px auto; padding: 0 16px; }
+  .search-box { background: white; border-radius: 10px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); margin-bottom: 20px; }
+  .search-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  input[type=text] { flex: 1; min-width: 220px; padding: 12px 16px; border: 1px solid #ddd; border-radius: 8px; font-size: 15px; outline: none; }
+  input[type=text]:focus { border-color: #1a2b4a; }
+  button { padding: 12px 22px; border: none; border-radius: 8px; font-size: 14px; cursor: pointer; font-weight: 600; transition: background 0.15s; }
+  .btn-search { background: #1a2b4a; color: white; }
+  .btn-search:hover { background: #253d66; }
+  .btn-image { background: #2e7d32; color: white; }
+  .btn-image:hover { background: #388e3c; }
+  #image-input { display: none; }
+  .timing-bar { font-size: 12px; color: #888; margin-top: 10px; display: flex; gap: 14px; flex-wrap: wrap; }
+  .timing-bar span { background: #f0f4f8; padding: 3px 8px; border-radius: 10px; }
+  .debug-box { background: #fff8e1; border: 1px solid #ffe082; border-radius: 8px; padding: 12px 16px; margin-top: 10px; font-size: 12px; font-family: monospace; color: #5d4037; white-space: pre-wrap; display: none; }
+  .debug-toggle { font-size: 12px; color: #888; cursor: pointer; margin-top: 8px; text-decoration: underline; display: none; }
+  .section-title { font-size: 16px; font-weight: 700; margin-bottom: 12px; padding-bottom: 6px; border-bottom: 2px solid #eee; display: flex; align-items: center; gap: 8px; }
+  .tag { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; }
+  .tag-in  { background: #e8f5e9; color: #2e7d32; }
+  .tag-out { background: #ffebee; color: #c62828; }
+  .tag-sub { background: #fff3e0; color: #e65100; }
+  .results-section { background: white; border-radius: 10px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); margin-bottom: 16px; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th { background: #f0f4f8; text-align: left; padding: 10px 12px; font-weight: 600; color: #555; white-space: nowrap; }
+  td { padding: 10px 12px; border-bottom: 1px solid #f0f0f0; vertical-align: top; }
+  tr:hover td { background: #fafbfc; }
+  .reason { font-style: italic; color: #555; font-size: 13px; }
+  .detected { background: #e3f2fd; border-radius: 8px; padding: 10px 14px; margin-bottom: 14px; font-size: 14px; color: #1565c0; }
+  .loading { text-align: center; padding: 40px; color: #888; }
+  .spinner { display: inline-block; width: 22px; height: 22px; border: 3px solid #ddd; border-top-color: #1a2b4a; border-radius: 50%; animation: spin 0.7s linear infinite; margin-right: 8px; vertical-align: middle; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .load-card { max-width: 480px; margin: 48px auto; background: white; border-radius: 14px; box-shadow: 0 4px 24px rgba(0,0,0,0.10); padding: 32px 36px; }
+  .load-query { font-size: 18px; font-weight: 700; color: #1a2b4a; margin-bottom: 6px; word-break: break-word; }
+  .load-subtitle { font-size: 13px; color: #999; margin-bottom: 28px; }
+  .load-steps { list-style: none; padding: 0; margin: 0; }
+  .load-step { display: flex; align-items: flex-start; gap: 14px; padding: 10px 0; border-bottom: 1px solid #f4f4f4; }
+  .load-step:last-child { border-bottom: none; }
+  .load-icon { width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 13px; margin-top: 1px; }
+  .load-icon.pending { background: #f0f0f0; color: #bbb; }
+  .load-icon.active  { background: #e8f0fe; }
+  .load-icon.done    { background: #e8f5e9; color: #2e7d32; font-size: 15px; }
+  .load-step-text { flex: 1; }
+  .load-step-label { font-size: 14px; font-weight: 600; }
+  .load-step-label.pending { color: #bbb; }
+  .load-step-label.active  { color: #1a2b4a; }
+  .load-step-label.done    { color: #2e7d32; }
+  .load-step-note { font-size: 12px; color: #aaa; margin-top: 2px; }
+  .load-step-note.active { color: #5c6bc0; }
+  .load-bar { height: 3px; background: #eee; border-radius: 3px; margin-top: 24px; overflow: hidden; }
+  .load-bar-fill { height: 100%; background: linear-gradient(90deg, #1a2b4a, #5c6bc0); border-radius: 3px; width: 0%; transition: width 0.5s ease; }
+  .load-spin { display: inline-block; width: 14px; height: 14px; border: 2px solid #c5cae9; border-top-color: #3949ab; border-radius: 50%; animation: spin 0.7s linear infinite; }
+  .no-results { text-align: center; padding: 30px; color: #aaa; }
+  .url-cell { display: flex; align-items: center; gap: 6px; }
+  .url-link { color: #1565c0; text-decoration: none; font-size: 13px; }
+  .url-link:hover { text-decoration: underline; }
+  .copy-btn { background: #e8eaf6; border: none; border-radius: 5px; padding: 3px 8px; font-size: 11px; cursor: pointer; color: #3949ab; font-weight: 600; }
+  .copy-btn:hover { background: #c5cae9; }
+  .copy-btn.copied { background: #e8f5e9; color: #2e7d32; }
+  .img-preview { max-width: 120px; max-height: 80px; border-radius: 6px; border: 1px solid #eee; margin-top: 8px; display: none; }
+  .interp-panel { font-size: 12px; color: #888; margin-top: 8px; display: none; line-height: 1.8; }
+  .prod-img { width: 48px; height: 48px; object-fit: cover; border-radius: 6px; border: 1px solid #ddd; display: block; cursor: pointer; }
+  .img-upload-btn { margin-top: 4px; font-size: 10px; color: #888; background: #f0f4f8; border: none; border-radius: 4px; padding: 2px 6px; cursor: pointer; width: 48px; }
+  .img-upload-btn:hover { background: #dbe4f0; color: #1a2b4a; }
+  .img-lightbox { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 9999; align-items: center; justify-content: center; }
+  .img-lightbox.open { display: flex; }
+  .img-lightbox img { max-width: 90vw; max-height: 90vh; border-radius: 10px; }
+  .img-lightbox-close { position: absolute; top: 20px; right: 28px; color: white; font-size: 32px; cursor: pointer; line-height: 1; }
+  th.sortable { cursor: pointer; user-select: none; }
+  th.sortable:hover { background: #e4eaf2; }
+  th.sort-asc  { background: #e3eaf5; }
+  th.sort-desc { background: #e3eaf5; }
+  th.sort-asc  .sort-arrow::after { content: ' ↑'; color: #1a2b4a; font-size: 11px; }
+  th.sort-desc .sort-arrow::after { content: ' ↓'; color: #1a2b4a; font-size: 11px; }
+  th:not(.sort-asc):not(.sort-desc) .sort-arrow::after { content: ' ↕'; color: #ccc; font-size: 11px; }
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>Inventory Search</h1>
+</div>
+<div class="container">
+  <div class="search-box">
+    <div class="search-row">
+      <input type="text" id="query" placeholder="e.g. AN214, audio amplifier, i5 laptop..." onkeydown="if(event.key==='Enter') textSearch()">
+      <button class="btn-search" onclick="textSearch()">Search</button>
+      <button class="btn-image" onclick="document.getElementById('image-input').click()">Upload Photo</button>
+      <input type="file" id="image-input" accept="image/*" onchange="imageSearch(this)">
+    </div>
+    <div id="img-preview-container" style="display:none; position:relative; margin-top:8px;">
+      <img id="img-preview" style="max-width:120px; max-height:80px; border-radius:6px; border:1px solid #eee; display:block;">
+      <button onclick="clearImage()" style="position:absolute; top:-8px; right:-8px; background:#c62828; color:white; border:none; border-radius:50%; width:20px; height:20px; font-size:12px; cursor:pointer; line-height:1; padding:0;">✕</button>
+    </div>
+    <div id="timing" class="timing-bar"></div>
+    <div class="interp-panel" id="interp-panel">
+      <span style="color:#555">Interpreted as:</span>
+      <span id="interp-note" style="color:#1a2b4a;font-weight:600"></span>
+      &nbsp;|&nbsp;
+      <span style="color:#555">Terms:</span>
+      <span id="interp-terms" style="color:#2e7d32"></span>
+      <br>
+      <span style="color:#666">Rule:</span>
+      <span id="interp-rule" style="color:#7b1fa2"></span>
+      &nbsp;|&nbsp;
+      <span id="interp-ai"></span>
+    </div>
+    <div class="debug-toggle" id="debug-toggle" onclick="toggleDebug()">Show debug info</div>
+    <div class="debug-box" id="debug-box"></div>
+  </div>
+  <div id="results"></div>
+</div>
+
+<script>
+let lastDebug = null;
+let debugVisible = false;
+let allResults = [];
+let filteredResults = [];
+
+function clearImage() {
+  document.getElementById('img-preview').src = '';
+  document.getElementById('img-preview-container').style.display = 'none';
+  document.getElementById('image-input').value = '';
+  document.getElementById('results').innerHTML = '';
+  document.getElementById('timing').innerHTML = '';
+  document.getElementById('debug-toggle').style.display = 'none';
+  document.getElementById('interp-panel').style.display = 'none';
+}
+
+function showLoading(msg) {
+  document.getElementById('timing').innerHTML = '';
+  document.getElementById('interp-panel').style.display = 'none';
+  document.getElementById('debug-toggle').style.display = 'none';
+  document.getElementById('debug-box').style.display = 'none';
+  document.getElementById('results').innerHTML = '<div class="loading"><span class="spinner"></span>' + msg + '</div>';
+}
+
+var _loadTimer = null;
+
+function startLoadingSteps(query, steps) {
+  document.getElementById('timing').innerHTML = '';
+  document.getElementById('interp-panel').style.display = 'none';
+  document.getElementById('debug-toggle').style.display = 'none';
+  document.getElementById('debug-box').style.display = 'none';
+
+  if (_loadTimer) { clearInterval(_loadTimer); _loadTimer = null; }
+
+  var current = 0;
+
+  function buildHtml(activeIdx) {
+    var stepsHtml = steps.map(function(s, i) {
+      var state = i < activeIdx ? 'done' : (i === activeIdx ? 'active' : 'pending');
+      var icon = state === 'done'   ? '<span class="load-icon done">✓</span>'
+               : state === 'active' ? '<span class="load-icon active"><span class="load-spin"></span></span>'
+               :                      '<span class="load-icon pending">·</span>';
+      return '<li class="load-step">' + icon +
+        '<div class="load-step-text">' +
+          '<div class="load-step-label ' + state + '">' + s.label + '</div>' +
+          '<div class="load-step-note' + (state === 'active' ? ' active' : '') + '">' + s.note + '</div>' +
+        '</div></li>';
+    }).join('');
+
+    var pct = Math.round((Math.max(activeIdx, 0) / steps.length) * 100);
+
+    return '<div class="load-card">' +
+      '<div class="load-query">' + escLoadHtml(query) + '</div>' +
+      '<div class="load-subtitle">Processing your search…</div>' +
+      '<ul class="load-steps">' + stepsHtml + '</ul>' +
+      '<div class="load-bar"><div class="load-bar-fill" id="lbar" style="width:' + pct + '%"></div></div>' +
+    '</div>';
+  }
+
+  function escLoadHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  document.getElementById('results').innerHTML = buildHtml(0);
+
+  var delays = steps.map(function(s) { return s.ms || 900; });
+  var idx = 0;
+
+  _loadTimer = setInterval(function() {
+    idx++;
+    if (idx >= steps.length) { clearInterval(_loadTimer); _loadTimer = null; idx = steps.length - 1; }
+    document.getElementById('results').innerHTML = buildHtml(idx);
+  }, delays[idx] || 900);
+}
+
+function stopLoadingSteps() {
+  if (_loadTimer) { clearInterval(_loadTimer); _loadTimer = null; }
+}
+
+function showTiming(timing, debug) {
+  const t = document.getElementById('timing');
+  let parts = [];
+  if (timing.vision_ms) parts.push('<span>Vision: ' + timing.vision_ms + 'ms</span>');
+  if (timing.intent_ms) parts.push('<span>Intent: ' + timing.intent_ms + 'ms</span>');
+  if (timing.db_ms)     parts.push('<span>DB: ' + timing.db_ms + 'ms</span>');
+  if (timing.ai_ms) parts.push('<span>AI: ' + timing.ai_ms + 'ms</span>');
+  parts.push('<span>Total: ' + timing.total_ms + 'ms</span>');
+  t.innerHTML = parts.join('');
+  lastDebug = debug;
+  document.getElementById('debug-toggle').style.display = 'block';
+  document.getElementById('debug-toggle').textContent = 'Show debug info';
+  debugVisible = false;
+  document.getElementById('debug-box').style.display = 'none';
+}
+
+function toggleDebug() {
+  debugVisible = !debugVisible;
+  const box = document.getElementById('debug-box');
+  const toggle = document.getElementById('debug-toggle');
+  if (debugVisible) {
+    box.style.display = 'block';
+    box.textContent = JSON.stringify(lastDebug, null, 2);
+    toggle.textContent = 'Hide debug info';
+  } else {
+    box.style.display = 'none';
+    toggle.textContent = 'Show debug info';
+  }
+}
+
+function buildCategoryChips(results) {
+  var counts = {};
+  results.forEach(function(r) {
+    var cat = r.CategoryName || 'Uncategorized';
+    counts[cat] = (counts[cat] || 0) + 1;
+  });
+  var html = '<button class="cat-chip" data-cat="ALL" onclick="applyFilter(\'ALL\')" style="padding:6px 14px;border-radius:20px;font-size:13px;cursor:pointer;font-weight:600;background:#1a2b4a;color:white;border:none">All (' + results.length + ')</button>';
+  Object.keys(counts).sort().forEach(function(cat) {
+    html += '<button class="cat-chip" data-cat="' + cat + '" onclick="applyFilter(\'' + cat.replace(/'/g, "\\'") + '\')" style="padding:6px 14px;border-radius:20px;font-size:13px;cursor:pointer;font-weight:600;background:white;color:#333;border:1px solid #ddd">' + cat + ' (' + counts[cat] + ')</button>';
+  });
+  document.getElementById('category-filters').innerHTML = html;
+}
+
+function applyFilter(category) {
+  document.querySelectorAll('.cat-chip').forEach(function(c) {
+    c.style.background = c.dataset.cat === category ? '#1a2b4a' : 'white';
+    c.style.color = c.dataset.cat === category ? 'white' : '#333';
+    c.style.border = c.dataset.cat === category ? 'none' : '1px solid #ddd';
+  });
+  if (category === 'ALL') {
+    filteredResults = allResults;
+  } else {
+    filteredResults = allResults.filter(function(r) { return r.CategoryName === category; });
+  }
+  var section = document.getElementById('results').querySelector('.results-section');
+  var title = section.querySelector('.section-title');
+  title.innerHTML = 'Results <span class="tag tag-in">' + filteredResults.length + ' found</span>';
+  document.getElementById('results-table-container').innerHTML = renderTable(filteredResults, false);
+}
+
+function copyUrl(url, btn) {
+  navigator.clipboard.writeText(url).then(function() {
+    btn.textContent = 'Copied!';
+    btn.classList.add('copied');
+    setTimeout(function() { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1500);
+  });
+}
+
+function urlCell(url) {
+  if (!url || url.trim() === '') return '<td>—</td>';
+  var safe = url.trim();
+  return '<td><div class="url-cell"><a class="url-link" href="' + safe + '" target="_blank">Link</a><button class="copy-btn" onclick="copyUrl(\'' + safe + '\', this)">Copy</button></div></td>';
+}
+
+function renderRow(r, showReason) {
+  var filtersRaw = r.Filters || '';
+  var filtersDisplay = filtersRaw.length > 60 ? filtersRaw.slice(0, 60) + '...' : filtersRaw;
+  var balance = parseFloat(r.Balance);
+  if (isNaN(balance)) balance = 0;
+  var outOfStock = r._out_of_stock || balance <= 0;
+  var rowStyle = outOfStock ? ' style="opacity:0.7;background:#fafafa"' : '';
+  var html = '<tr' + rowStyle + '>';
+  var imgSrc = r._image_url || '';
+  var imgCell;
+  if (imgSrc) {
+    imgCell = '<td style="width:60px;padding:6px">' +
+      '<img src="' + imgSrc + '" ' +
+      'style="width:52px;height:52px;object-fit:contain;border-radius:4px;border:0.5px solid #e0e0e0;background:#f8f9fa;cursor:pointer" ' +
+      'loading="lazy" ' +
+      'onerror="this.parentNode.innerHTML=\'<div style=&quot;width:52px;height:52px;border-radius:4px;border:0.5px solid #e0e0e0;background:#f0f0f0&quot;></div>\'" ' +
+      'onclick="showLightbox(this.src)" ' +
+      '/></td>';
+  } else {
+    imgCell = '<td style="width:60px;padding:6px">' +
+      '<div style="width:52px;height:52px;border-radius:4px;border:0.5px solid #e0e0e0;background:#f0f0f0"></div>' +
+      '</td>';
+  }
+  html += imgCell;
+  html += '<td><strong>' + (r.Item || '') + '</strong></td>';
+  html += '<td>' + (r.Description || '') + '<br><small style="color:#888">' + (r.WebDescription || '') + '</small></td>';
+  html += '<td><span style="font-size:13px">' + (r.CategoryName || '') + '</span>' + (r.Brand ? '<br><small style="color:#888">' + r.Brand + '</small>' : '') + '</td>';
+  html += '<td>' + (r.Original_No || '') + '</td>';
+  if (outOfStock) {
+    var highConf = (r._confidence || 0) >= 60;
+    html += '<td><span class="tag tag-out">Out of stock</span>' + (highConf ? '<br><small style="color:#888;font-size:11px">High confidence match</small>' : '') + '</td>';
+  } else {
+    html += '<td><span class="tag tag-in">' + balance + '</span></td>';
+  }
+  html += '<td><span style="font-size:12px;color:#555" title="' + filtersRaw.replace(/"/g, '&quot;') + '">' + filtersDisplay + '</span></td>';
+  html += '<td>$' + parseFloat(r.Retail || 0).toFixed(2) + '</td>';
+  html += '<td>$' + parseFloat(r.BulkPrice || r.Retail || 0).toFixed(2) + '</td>';
+  html += urlCell(r.WebLink);
+  if (showReason) html += '<td><span class="reason">' + (r.Reason || '') + '</span></td>';
+  html += '</tr>';
+  return html;
+}
+
+var tableIdCounter = 0;
+var tableStates = {};
+
+var COL_DEFS = [
+  { key: null,           label: 'Image',       sort: false, type: null, thStyle: 'width:60px' },
+  { key: 'Item',         label: 'Item',        sort: true,  type: 'str' },
+  { key: 'Description',  label: 'Description', sort: true,  type: 'str' },
+  { key: 'CategoryName', label: 'Category',    sort: true,  type: 'str' },
+  { key: 'Original_No',  label: 'Part No.',    sort: true,  type: 'str' },
+  { key: 'Balance',      label: 'Stock',       sort: true,  type: 'num' },
+  { key: 'Filters',      label: 'Filters',     sort: false, type: 'str' },
+  { key: 'Retail',       label: 'Retail',      sort: true,  type: 'num' },
+  { key: 'BulkPrice',    label: 'Bulk',        sort: true,  type: 'num' },
+  { key: null,           label: 'URL',         sort: false, type: null  },
+];
+
+function applyFiltersAndSort(state) {
+  var rows = state.rows.slice();
+  Object.keys(state.filters).forEach(function(col) {
+    var f = (state.filters[col] || '').toLowerCase().trim();
+    if (!f) return;
+    rows = rows.filter(function(r) {
+      return String(r[col] || '').toLowerCase().indexOf(f) !== -1;
+    });
+  });
+  var col = state.sortCol;
+  var dir = state.sortDir === 'asc' ? 1 : -1;
+  var colDef = COL_DEFS.find(function(c) { return c.key === col; });
+  var isNum = colDef && colDef.type === 'num';
+  rows.sort(function(a, b) {
+    var av = isNum ? parseFloat(a[col] || 0) : String(a[col] || '').toLowerCase();
+    var bv = isNum ? parseFloat(b[col] || 0) : String(b[col] || '').toLowerCase();
+    if (av < bv) return -1 * dir;
+    if (av > bv) return  1 * dir;
+    // tiebreak: Balance DESC, then Retail DESC
+    if (col !== 'Balance') {
+      var ab = parseFloat(a.Balance); if (isNaN(ab)) ab = 0;
+      var bb = parseFloat(b.Balance); if (isNaN(bb)) bb = 0;
+      if (ab !== bb) return bb - ab;
+    }
+    if (col !== 'Retail') {
+      var ar = parseFloat(a.Retail || 0), br = parseFloat(b.Retail || 0);
+      if (ar !== br) return br - ar;
+    }
+    return 0;
+  });
+  return rows;
+}
+
+function buildTableInner(id) {
+  var state = tableStates[id];
+  var rows = applyFiltersAndSort(state);
+  var showReason = state.showReason;
+  var colSpan = showReason ? 12 : 11;
+  var cols = COL_DEFS.slice();
+  if (showReason) cols = cols.concat([{ key: 'Reason', label: 'Why a substitute', sort: false, filter: false, type: null }]);
+
+  var html = '<table><thead><tr>';
+  cols.forEach(function(c) {
+    var active = c.key && state.sortCol === c.key;
+    var thClass = c.sort ? 'sortable' : '';
+    if (active) thClass += ' sort-' + state.sortDir;
+    var onclick = c.sort ? ' onclick="sortTable(\'' + id + '\',\'' + c.key + '\')"' : '';
+    var thStyle = c.thStyle ? ' style="' + c.thStyle + '"' : '';
+    html += '<th class="' + thClass.trim() + '"' + onclick + thStyle + '>';
+    html += c.label;
+    if (c.sort) html += '<span class="sort-arrow"></span>';
+    html += '</th>';
+  });
+  html += '</tr></thead><tbody>';
+
+  if (rows.length === 0) {
+    html += '<tr><td colspan="' + colSpan + '" style="text-align:center;padding:20px;color:#aaa">No results match the filter</td></tr>';
+  } else {
+    rows.forEach(function(r) { html += renderRow(r, showReason); });
+  }
+  html += '</tbody></table>';
+  return html;
+}
+
+function renderTable(rows, showReason) {
+  var id = 'tbl-' + (++tableIdCounter);
+  tableStates[id] = { rows: rows, sortCol: 'Balance', sortDir: 'desc', filters: {}, showReason: showReason };
+  return '<div id="' + id + '">' + buildTableInner(id) + '</div>';
+}
+
+function sortTable(id, col) {
+  var state = tableStates[id];
+  if (!state) return;
+  if (state.sortCol === col) {
+    state.sortDir = state.sortDir === 'asc' ? 'desc' : 'asc';
+  } else {
+    state.sortCol = col;
+    state.sortDir = 'desc';
+  }
+  document.getElementById(id).innerHTML = buildTableInner(id);
+}
+
+function filterTable(id, col, val) {
+  var state = tableStates[id];
+  if (!state) return;
+  state.filters[col] = val;
+  document.getElementById(id).innerHTML = buildTableInner(id);
+}
+
+function render(data, detected) {
+  if (data.timing) showTiming(data.timing, data.debug);
+
+  var interp = data.interpretation;
+  if (interp) {
+    document.getElementById('interp-panel').style.display = 'block';
+    document.getElementById('interp-note').textContent = interp.interpretation_note || '';
+    document.getElementById('interp-terms').textContent = (interp.search_terms || []).join(', ');
+    document.getElementById('interp-rule').textContent = interp.rule_applied || '';
+    var aiEl = document.getElementById('interp-ai');
+    aiEl.textContent = interp.ai_used ? 'AI: used' : 'AI: skipped (rule matched)';
+    aiEl.style.color = interp.ai_used ? '#1565c0' : '#2e7d32';
+  } else {
+    document.getElementById('interp-panel').style.display = 'none';
+  }
+
+  if (data.error) {
+    document.getElementById('results').innerHTML = '<div class="results-section" style="border-left:4px solid #e53935"><div class="section-title" style="color:#c62828">Error</div><pre style="font-size:13px;color:#555;white-space:pre-wrap">' + data.error + '</pre></div>';
+    lastDebug = data.debug;
+    document.getElementById('debug-toggle').style.display = 'block';
+    return;
+  }
+
+  var html = '';
+  if (detected) {
+    html += '<div class="detected">Photo identified as: <strong>' + detected + '</strong></div>';
+  }
+
+  if (data.found && data.results.length > 0) {
+    allResults = data.results;
+    filteredResults = allResults;
+    html += '<div class="results-section"><div class="section-title">Results <span class="tag tag-in">' + data.results.length + ' found</span></div><div id="category-filters" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;"></div><div id="results-table-container">' + renderTable(filteredResults, false) + '</div></div>';
+  }
+
+  if (!data.found && data.substitutes && data.substitutes.length > 0) {
+    html += '<div class="results-section"><div class="section-title">Not found — Suggested substitutes <span class="tag tag-sub">' + data.substitutes.length + '</span></div>' + renderTable(data.substitutes, true) + '</div>';
+  }
+
+  if (!data.found && (!data.substitutes || data.substitutes.length === 0)) {
+    var suggestions = data.suggestions || [];
+    var sugHtml = '<div class="results-section"><div class="no-results">No results found.</div>';
+    if (suggestions.length > 0) {
+      sugHtml += '<div style="margin-top:14px"><div style="font-size:13px;color:#555;margin-bottom:10px;font-weight:600">Try searching for:</div>';
+      sugHtml += '<div style="display:flex;flex-wrap:wrap;gap:8px">';
+      suggestions.forEach(function(s) {
+        sugHtml += '<button onclick="searchSuggestion(\'' + s.replace(/'/g, "\\'") + '\')" style="padding:7px 16px;border-radius:20px;border:1px solid #1a2b4a;background:white;color:#1a2b4a;font-size:13px;font-weight:600;cursor:pointer" onmouseover="this.style.background=\'#1a2b4a\';this.style.color=\'white\'" onmouseout="this.style.background=\'white\';this.style.color=\'#1a2b4a\'">' + s + '</button>';
+      });
+      sugHtml += '</div></div>';
+    }
+    sugHtml += '</div>';
+    html += sugHtml;
+  }
+
+  document.getElementById('results').innerHTML = html;
+  if (data.found && data.results && data.results.length > 0) {
+    buildCategoryChips(data.results);
+  }
+}
+
+function searchSuggestion(term) {
+  document.getElementById('query').value = term;
+  textSearch();
+}
+
+async function textSearch() {
+  var q = document.getElementById('query').value.trim();
+  if (!q) return;
+  startLoadingSteps(q, [
+    { label: 'Checking keyword aliases',        note: 'Translating shorthand to canonical terms',          ms: 400  },
+    { label: 'Interpreting query with AI',       note: 'Expanding intent and finding related terms',        ms: 1200 },
+    { label: 'Searching the database',           note: 'Running word-boundary queries across all fields',   ms: 900  },
+    { label: 'Scoring & ranking results',        note: 'Confidence scoring, category boost, stock weight',  ms: 600  },
+    { label: 'Loading product images',           note: 'Fetching thumbnails from image database',           ms: 400  },
+  ]);
+  try {
+    var res = await fetch('/search?q=' + encodeURIComponent(q));
+    var text = await res.text();
+    stopLoadingSteps();
+    try {
+      var data = JSON.parse(text);
+      render(data, null);
+    } catch(jsonErr) {
+      document.getElementById('results').innerHTML = '<div class="results-section" style="border-left:4px solid #e53935"><div class="section-title" style="color:#c62828">Server Error (HTTP ' + res.status + ')</div><pre style="font-size:12px;color:#555;white-space:pre-wrap;margin-top:8px">' + text.slice(0, 2000) + '</pre></div>';
+    }
+  } catch(e) {
+    stopLoadingSteps();
+    document.getElementById('results').innerHTML = '<div class="results-section"><div class="no-results">Request failed: ' + e.message + '</div></div>';
+  }
+}
+
+async function imageSearch(input) {
+  if (!input.files[0]) return;
+  var file = input.files[0];
+  var preview = document.getElementById('img-preview');
+  preview.src = URL.createObjectURL(file);
+  document.getElementById('img-preview-container').style.display = 'inline-block';
+  startLoadingSteps(file.name, [
+    { label: 'Reading your image',              note: 'Decoding and preparing for AI analysis',           ms: 500  },
+    { label: 'Identifying product with AI',     note: 'Detecting brand, model, and product type',         ms: 1400 },
+    { label: 'Searching the database',          note: 'Matching identified product against inventory',    ms: 900  },
+    { label: 'Finding substitutes',             note: 'Looking for alternatives if exact match missing',  ms: 700  },
+    { label: 'Loading product images',          note: 'Fetching thumbnails for matched items',            ms: 400  },
+  ]);
+  try {
+    var form = new FormData();
+    form.append('file', file);
+    var res = await fetch('/search-by-image', { method: 'POST', body: form });
+    var data = await res.json();
+    stopLoadingSteps();
+    render(data, data.detected);
+  } catch(e) {
+    stopLoadingSteps();
+    document.getElementById('results').innerHTML = '<div class="results-section"><div class="no-results">Image upload failed: ' + e.message + '</div></div>';
+  }
+  input.value = '';
+}
+
+async function uploadProductImage(autonum, input) {
+  if (!input.files || !input.files[0]) return;
+  var file = input.files[0];
+  var formData = new FormData();
+  formData.append('file', file);
+  try {
+    var res = await fetch('/api/product-image/' + autonum, { method: 'POST', body: formData });
+    var data = await res.json();
+    if (data.status === 'ok') {
+      var img = document.getElementById('img-' + autonum);
+      var noPhoto = document.getElementById('nophoto-' + autonum);
+      if (img) {
+        img.src = '/api/product-image/' + autonum + '?t=' + Date.now();
+        img.style.display = 'block';
+      }
+      if (noPhoto) noPhoto.style.display = 'none';
+    }
+  } catch(e) { alert('Upload failed'); }
+  input.value = '';
+}
+
+function openLightbox(src) {
+  var lb = document.getElementById('img-lightbox');
+  document.getElementById('img-lightbox-img').src = src;
+  lb.classList.add('open');
+}
+function closeLightbox() {
+  document.getElementById('img-lightbox').classList.remove('open');
+}
+</script>
+
+<div id="img-lightbox" class="img-lightbox" onclick="closeLightbox()">
+  <span class="img-lightbox-close" onclick="closeLightbox()">&times;</span>
+  <img id="img-lightbox-img" src="" onclick="event.stopPropagation()">
+</div>
+</body>
+</html>

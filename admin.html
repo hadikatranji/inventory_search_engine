@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Search Admin</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Arial, sans-serif; background: #f4f6f9; color: #333; }
+  .header { background: #1a2b4a; color: white; padding: 16px 24px;
+            display: flex; align-items: center; justify-content: space-between; }
+  .header h1 { font-size: 20px; font-weight: 600; }
+  .header a { color: #90caf9; font-size: 14px; text-decoration: none; }
+  .container { max-width: 1100px; margin: 24px auto; padding: 0 16px; }
+  .section { background: white; border-radius: 10px; padding: 20px;
+             box-shadow: 0 2px 8px rgba(0,0,0,0.08); margin-bottom: 20px; }
+  .section-title { font-size: 16px; font-weight: 700; margin-bottom: 16px;
+                   padding-bottom: 8px; border-bottom: 2px solid #eee; color: #1a2b4a; }
+  .add-form { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
+  select, input { padding: 10px 14px; border: 1px solid #ddd;
+                  border-radius: 8px; font-size: 14px; min-width: 200px; }
+  .btn { padding: 10px 20px; border: none; border-radius: 8px;
+         font-size: 14px; cursor: pointer; font-weight: 600; }
+  .btn-add { background: #1a2b4a; color: white; }
+  .btn-add:hover { background: #253d66; }
+  .btn-del { background: #ffebee; color: #c62828; border: 1px solid #ef9a9a;
+             padding: 4px 10px; font-size: 12px; border-radius: 5px; cursor: pointer; }
+  .btn-del:hover { background: #ffcdd2; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; margin-top: 16px; }
+  th { background: #f0f4f8; text-align: left; padding: 10px 12px;
+       font-weight: 600; color: #555; }
+  td { padding: 10px 12px; border-bottom: 1px solid #f0f0f0; vertical-align: middle; }
+  tr:hover td { background: #fafbfc; }
+  .category-group { background: #f8f9ff; font-weight: 700; color: #1a2b4a; }
+  .label { display: inline-block; padding: 3px 10px; border-radius: 12px;
+           font-size: 12px; font-weight: 600; background: #e8f5e9; color: #2e7d32; }
+  .priority-1 { background: #e3f2fd; color: #1565c0; }
+  .priority-2 { background: #fff3e0; color: #e65100; }
+  .loading { text-align: center; padding: 30px; color: #888; }
+  .no-data { text-align: center; padding: 20px; color: #aaa; font-style: italic; }
+  .success { background: #e8f5e9; color: #2e7d32; padding: 10px 14px;
+             border-radius: 8px; margin-bottom: 12px; display: none; }
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>Search Admin</h1>
+  <div style="display:flex;gap:16px;align-items:center">
+    <a href="/analytics">Analytics</a>
+    <a href="/">Back to Search</a>
+  </div>
+</div>
+<div class="container">
+
+  <div style="display:flex;gap:0;margin-bottom:20px;border-bottom:2px solid #eee;flex-wrap:wrap">
+    <button onclick="showTab('categories')" id="tab-categories"
+      style="padding:10px 24px;border:none;background:none;font-size:14px;font-weight:600;cursor:pointer;border-bottom:3px solid #1a2b4a;color:#1a2b4a;margin-bottom:-2px">
+      Category Substitutes
+    </button>
+    <button onclick="showTab('terms')" id="tab-terms"
+      style="padding:10px 24px;border:none;background:none;font-size:14px;font-weight:600;cursor:pointer;border-bottom:3px solid transparent;color:#888;margin-bottom:-2px">
+      Product Terms
+    </button>
+    <button onclick="showTab('aliases')" id="tab-aliases"
+      style="padding:10px 24px;border:none;background:none;font-size:14px;font-weight:600;cursor:pointer;border-bottom:3px solid transparent;color:#888;margin-bottom:-2px">
+      Keyword Aliases
+    </button>
+    <button onclick="showTab('generate')" id="tab-generate"
+      style="padding:10px 24px;border:none;background:none;font-size:14px;font-weight:600;cursor:pointer;border-bottom:3px solid transparent;color:#888;margin-bottom:-2px">
+      ✦ Generate Aliases
+    </button>
+  </div>
+
+  <div id="panel-categories">
+    <div class="section">
+      <div class="section-title">Add New Mapping</div>
+      <div class="success" id="success-msg">Saved successfully</div>
+      <div class="add-form">
+        <div>
+          <div style="font-size:12px;color:#888;margin-bottom:4px">When searching for...</div>
+          <select id="cat-from"><option value="">Select category...</option></select>
+        </div>
+        <div>
+          <div style="font-size:12px;color:#888;margin-bottom:4px">Also look in...</div>
+          <select id="cat-to"><option value="">Select substitute category...</option></select>
+        </div>
+        <div>
+          <div style="font-size:12px;color:#888;margin-bottom:4px">Priority</div>
+          <select id="priority">
+            <option value="1">1 — Primary</option>
+            <option value="2">2 — Secondary</option>
+            <option value="3">3 — Fallback</option>
+          </select>
+        </div>
+        <button class="btn btn-add" onclick="addMapping()">Add Mapping</button>
+      </div>
+    </div>
+    <div class="section">
+      <div class="section-title">Current Mappings</div>
+      <div id="map-table"><div class="loading">Loading...</div></div>
+    </div>
+  </div>
+
+  <div id="panel-aliases" style="display:none">
+    <div class="section">
+      <div class="section-title">Add Keyword Alias</div>
+      <div style="font-size:13px;color:#666;margin-bottom:14px">
+        When a user searches for the alias phrase, it will be replaced with the target term before searching.<br>
+        Example: <strong>"12v car plugin"</strong> → <strong>"cigarette lighter"</strong>
+      </div>
+      <div class="success" id="alias-success-msg">Saved successfully</div>
+      <div class="add-form">
+        <div>
+          <div style="font-size:12px;color:#888;margin-bottom:4px">When user searches for... (alias)</div>
+          <input type="text" id="alias-input" placeholder="e.g. 12v car plugin" style="min-width:220px">
+        </div>
+        <div>
+          <div style="font-size:12px;color:#888;margin-bottom:4px">Search instead for... (target term)</div>
+          <input type="text" id="alias-target" placeholder="e.g. cigarette lighter" style="min-width:220px">
+        </div>
+        <button class="btn btn-add" onclick="addAlias()">Add Alias</button>
+      </div>
+    </div>
+    <div class="section">
+      <div class="section-title">Current Aliases</div>
+      <div id="aliases-table"><div class="loading">Loading...</div></div>
+    </div>
+  </div>
+
+  <div id="panel-terms" style="display:none">
+    <div class="section">
+      <div class="section-title">Add Product Term Rule</div>
+      <div class="success" id="term-success-msg">Saved successfully</div>
+      <div class="add-form" style="flex-wrap:wrap;gap:10px">
+        <div>
+          <div style="font-size:12px;color:#888;margin-bottom:4px">Search term (e.g. "dell", "hp laptop")</div>
+          <input type="text" id="term-input" placeholder="e.g. dell, lenovo, ipad..." style="min-width:180px">
+        </div>
+        <div>
+          <div style="font-size:12px;color:#888;margin-bottom:4px">Boost to category</div>
+          <select id="term-category"><option value="">No category boost</option></select>
+        </div>
+        <div>
+          <div style="font-size:12px;color:#888;margin-bottom:4px">Exclude terms (comma separated)</div>
+          <input type="text" id="term-excludes" placeholder="e.g. adapter,bag,case" style="min-width:220px">
+        </div>
+        <button class="btn btn-add" onclick="addTerm()">Add Term</button>
+      </div>
+    </div>
+    <div class="section">
+      <div class="section-title">Current Product Terms</div>
+      <div id="terms-table"><div class="loading">Loading...</div></div>
+    </div>
+  </div>
+
+  <div id="panel-generate" style="display:none">
+    <div class="section">
+      <div class="section-title">AI Alias Generator — powered by live web search</div>
+      <p style="font-size:13px;color:#666;margin-bottom:18px;line-height:1.6">
+        Enter any product name or category. The AI will search Amazon, Alibaba and AliExpress
+        for real product listings, extract the words buyers actually use, and suggest
+        alias mappings you can review and save directly into your system.
+      </p>
+
+      <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-bottom:16px">
+        <div style="flex:1;min-width:240px">
+          <div style="font-size:12px;color:#888;margin-bottom:4px">Product or keyword to research</div>
+          <input type="text" id="gen-query" placeholder="e.g. usb c charger, laptop fan, arduino uno"
+            style="width:100%;padding:11px 14px;border:1px solid #ddd;border-radius:8px;font-size:14px"
+            onkeydown="if(event.key==='Enter') generateAliases()">
+        </div>
+        <div>
+          <div style="font-size:12px;color:#888;margin-bottom:6px">Search on</div>
+          <div style="display:flex;gap:14px;align-items:center">
+            <label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer">
+              <input type="checkbox" id="src-amazon" checked style="min-width:auto">
+              <span style="background:#FF9900;color:#fff;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600">Amazon</span>
+            </label>
+            <label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer">
+              <input type="checkbox" id="src-alibaba" checked style="min-width:auto">
+              <span style="background:#FF6000;color:#fff;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600">Alibaba</span>
+            </label>
+            <label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer">
+              <input type="checkbox" id="src-aliexpress" checked style="min-width:auto">
+              <span style="background:#c62828;color:#fff;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600">AliExpress</span>
+            </label>
+          </div>
+        </div>
+        <button class="btn btn-add" id="gen-btn" onclick="generateAliases()"
+          style="padding:11px 28px;white-space:nowrap">Search &amp; Generate</button>
+      </div>
+
+      <div id="gen-status" style="display:none;padding:10px 14px;border-radius:8px;
+           background:#f0f4ff;border:1px solid #c5d0e8;font-size:13px;color:#1a2b4a;margin-bottom:12px">
+      </div>
+    </div>
+
+    <div id="gen-results-section" style="display:none">
+      <div class="section">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px">
+          <div class="section-title" style="margin:0;border:none;padding:0">
+            Suggested Aliases
+            <span id="gen-count-badge" style="font-size:12px;font-weight:400;color:#666;margin-left:8px"></span>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <button onclick="selectAllGen(true)"
+              style="padding:6px 14px;border:1px solid #ddd;border-radius:6px;background:#fff;font-size:13px;cursor:pointer">
+              Select All
+            </button>
+            <button onclick="selectAllGen(false)"
+              style="padding:6px 14px;border:1px solid #ddd;border-radius:6px;background:#fff;font-size:13px;cursor:pointer">
+              Deselect All
+            </button>
+            <button id="gen-save-btn" onclick="saveSelected()"
+              style="padding:6px 18px;background:#2e7d32;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer">
+              Save Selected
+            </button>
+          </div>
+        </div>
+
+        <div id="gen-save-msg" style="display:none;padding:10px 14px;border-radius:8px;
+             background:#e8f5e9;color:#2e7d32;font-size:13px;margin-bottom:12px"></div>
+
+        <table style="width:100%;border-collapse:collapse;font-size:13px">
+          <thead>
+            <tr style="background:#f0f4f8">
+              <th style="padding:10px 8px;text-align:left;width:36px"></th>
+              <th style="padding:10px 8px;text-align:left">Alias (user types)</th>
+              <th style="padding:10px 8px;text-align:left">Maps to</th>
+              <th style="padding:10px 8px;text-align:left;width:90px">Source</th>
+              <th style="padding:10px 8px;text-align:left">Reason</th>
+            </tr>
+          </thead>
+          <tbody id="gen-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+var allCategories = [];
+var currentMap = [];
+
+function showTab(tab) {
+  ['categories', 'terms', 'aliases', 'generate'].forEach(function(t) {
+    document.getElementById('panel-' + t).style.display = tab === t ? 'block' : 'none';
+    document.getElementById('tab-' + t).style.borderBottomColor = tab === t ? '#1a2b4a' : 'transparent';
+    document.getElementById('tab-' + t).style.color = tab === t ? '#1a2b4a' : '#888';
+  });
+  if (tab === 'terms') loadTerms();
+  if (tab === 'aliases') loadAliases();
+}
+
+async function loadData() {
+  var res = await fetch('/api/admin/category-map');
+  var data = await res.json();
+  if (data.error) {
+    document.getElementById('map-table').innerHTML = '<div style="color:red">' + data.error + '</div>';
+    return;
+  }
+  allCategories = data.all_categories || [];
+  currentMap = data.map || [];
+  populateSelects();
+  renderTable();
+  var catOpts = '<option value="">No category boost</option>' +
+    allCategories.map(function(c) {
+      return '<option value="' + c + '">' + c + '</option>';
+    }).join('');
+  document.getElementById('term-category').innerHTML = catOpts;
+}
+
+function populateSelects() {
+  var opts = '<option value="">Select category...</option>' +
+    allCategories.map(function(c) {
+      return '<option value="' + c + '">' + c + '</option>';
+    }).join('');
+  document.getElementById('cat-from').innerHTML = opts;
+  document.getElementById('cat-to').innerHTML = opts;
+}
+
+function renderTable() {
+  if (currentMap.length === 0) {
+    document.getElementById('map-table').innerHTML = '<div class="no-data">No mappings yet</div>';
+    return;
+  }
+  var grouped = {};
+  currentMap.forEach(function(r) {
+    if (!grouped[r.CategoryName]) grouped[r.CategoryName] = [];
+    grouped[r.CategoryName].push(r);
+  });
+  var html = '<table><tr><th>Category (searching for)</th><th>Also search in</th><th>Priority</th><th>Action</th></tr>';
+  Object.keys(grouped).sort().forEach(function(cat) {
+    grouped[cat].forEach(function(r, i) {
+      html += '<tr>';
+      if (i === 0) {
+        html += '<td rowspan="' + grouped[cat].length + '" class="category-group">' + cat + '</td>';
+      }
+      var pClass = r.Priority === 1 ? 'priority-1' : 'priority-2';
+      html += '<td><span class="label">' + r.SubstituteCategory + '</span></td>';
+      html += '<td><span class="label ' + pClass + '">' + (r.Priority === 1 ? 'Primary' : 'Secondary') + '</span></td>';
+      html += '<td><button class="btn-del" onclick="deleteMapping(' + r.ID + ')">Remove</button></td>';
+      html += '</tr>';
+    });
+  });
+  html += '</table>';
+  document.getElementById('map-table').innerHTML = html;
+}
+
+async function addMapping() {
+  var from = document.getElementById('cat-from').value;
+  var to = document.getElementById('cat-to').value;
+  var priority = document.getElementById('priority').value;
+  if (!from || !to) { alert('Please select both categories'); return; }
+  var res = await fetch('/api/admin/category-map', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({category: from, substitute: to, priority: parseInt(priority)})
+  });
+  var data = await res.json();
+  if (data.status === 'ok') {
+    var msg = document.getElementById('success-msg');
+    msg.style.display = 'block';
+    setTimeout(function() { msg.style.display = 'none'; }, 2000);
+    loadData();
+  } else { alert('Error: ' + data.message); }
+}
+
+async function deleteMapping(id) {
+  if (!confirm('Remove this mapping?')) return;
+  var res = await fetch('/api/admin/category-map/' + id, {method: 'DELETE'});
+  var data = await res.json();
+  if (data.status === 'ok') loadData();
+  else alert('Error: ' + data.message);
+}
+
+async function loadTerms() {
+  document.getElementById('terms-table').innerHTML = '<div class="loading">Loading...</div>';
+  var res = await fetch('/api/admin/product-terms');
+  var data = await res.json();
+  if (data.error) {
+    document.getElementById('terms-table').innerHTML = '<div style="color:red">' + data.error + '</div>';
+    return;
+  }
+  var catOpts = '<option value="">No category boost</option>' +
+    (data.all_categories || []).map(function(c) {
+      return '<option value="' + c + '">' + c + '</option>';
+    }).join('');
+  document.getElementById('term-category').innerHTML = catOpts;
+  var terms = data.terms || [];
+  if (terms.length === 0) {
+    document.getElementById('terms-table').innerHTML = '<div class="no-data">No terms yet</div>';
+    return;
+  }
+  var html = '<table><tr><th>Priority</th><th>Search Term</th><th>Category Boost</th><th>Exclude Terms</th><th>Action</th></tr>';
+  terms.forEach(function(r) {
+    html += '<tr>';
+    html += '<td style="color:#888;font-size:12px">' + r.Priority + '</td>';
+    html += '<td><strong>' + r.Term + '</strong></td>';
+    html += '<td>' + (r.CategoryBoost ? '<span class="label">' + r.CategoryBoost + '</span>' : '<span style="color:#aaa">None</span>') + '</td>';
+    html += '<td style="font-size:12px;color:#555">' + (r.ExcludeTerms || '—') + '</td>';
+    html += '<td><button class="btn-del" onclick="deleteTerm(' + r.ID + ')">Remove</button></td>';
+    html += '</tr>';
+  });
+  html += '</table>';
+  document.getElementById('terms-table').innerHTML = html;
+}
+
+async function addTerm() {
+  var term = document.getElementById('term-input').value.trim().toLowerCase();
+  var category = document.getElementById('term-category').value;
+  var excludes = document.getElementById('term-excludes').value.trim();
+  if (!term) { alert('Please enter a search term'); return; }
+  var res = await fetch('/api/admin/product-terms', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({term: term, category_boost: category, exclude_terms: excludes})
+  });
+  var data = await res.json();
+  if (data.status === 'ok') {
+    document.getElementById('term-input').value = '';
+    document.getElementById('term-excludes').value = '';
+    var msg = document.getElementById('term-success-msg');
+    msg.style.display = 'block';
+    setTimeout(function() { msg.style.display = 'none'; }, 2000);
+    loadTerms();
+  } else { alert('Error: ' + data.message); }
+}
+
+async function deleteTerm(id) {
+  if (!confirm('Remove this term?')) return;
+  var res = await fetch('/api/admin/product-terms/' + id, {method: 'DELETE'});
+  var data = await res.json();
+  if (data.status === 'ok') loadTerms();
+  else alert('Error: ' + data.message);
+}
+
+async function loadAliases() {
+  document.getElementById('aliases-table').innerHTML = '<div class="loading">Loading...</div>';
+  var res = await fetch('/api/admin/term-aliases');
+  var data = await res.json();
+  if (data.error) {
+    document.getElementById('aliases-table').innerHTML = '<div style="color:red">' + data.error + '</div>';
+    return;
+  }
+  var aliases = data.aliases || [];
+  if (aliases.length === 0) {
+    document.getElementById('aliases-table').innerHTML = '<div class="no-data">No aliases yet</div>';
+    return;
+  }
+  var html = '<table><tr><th>When user searches for</th><th>Replace with</th><th>Action</th></tr>';
+  aliases.forEach(function(r) {
+    html += '<tr>';
+    html += '<td><strong>' + r.Alias + '</strong></td>';
+    html += '<td><span class="label">' + r.MapsToTerm + '</span></td>';
+    html += '<td><button class="btn-del" onclick="deleteAlias(' + r.ID + ')">Remove</button></td>';
+    html += '</tr>';
+  });
+  html += '</table>';
+  document.getElementById('aliases-table').innerHTML = html;
+}
+
+async function addAlias() {
+  var alias = document.getElementById('alias-input').value.trim().toLowerCase();
+  var target = document.getElementById('alias-target').value.trim();
+  if (!alias || !target) { alert('Please fill in both fields'); return; }
+  var res = await fetch('/api/admin/term-aliases', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({alias: alias, maps_to: target})
+  });
+  var data = await res.json();
+  if (data.status === 'ok') {
+    document.getElementById('alias-input').value = '';
+    document.getElementById('alias-target').value = '';
+    var msg = document.getElementById('alias-success-msg');
+    msg.style.display = 'block';
+    setTimeout(function() { msg.style.display = 'none'; }, 2000);
+    loadAliases();
+  } else { alert('Error: ' + data.message); }
+}
+
+async function deleteAlias(id) {
+  if (!confirm('Remove this alias?')) return;
+  var res = await fetch('/api/admin/term-aliases/' + id, {method: 'DELETE'});
+  var data = await res.json();
+  if (data.status === 'ok') loadAliases();
+  else alert('Error: ' + data.message);
+}
+
+var genSuggestions = [];
+
+var SOURCE_COLORS = {
+  amazon:     {bg:'#FF9900', text:'#fff'},
+  alibaba:    {bg:'#FF6000', text:'#fff'},
+  aliexpress: {bg:'#c62828', text:'#fff'},
+  general:    {bg:'#546e7a', text:'#fff'}
+};
+
+function sourceBadge(src) {
+  var s = (src || 'general').toLowerCase();
+  var c = SOURCE_COLORS[s] || SOURCE_COLORS.general;
+  var label = s.charAt(0).toUpperCase() + s.slice(1);
+  return '<span style="background:' + c.bg + ';color:' + c.text +
+    ';padding:2px 7px;border-radius:4px;font-size:11px;font-weight:600">' + label + '</span>';
+}
+
+async function generateAliases() {
+  var query = document.getElementById('gen-query').value.trim();
+  if (!query) { alert('Please enter a product or keyword to research'); return; }
+
+  var sources = [];
+  if (document.getElementById('src-amazon').checked)     sources.push('amazon');
+  if (document.getElementById('src-alibaba').checked)    sources.push('alibaba');
+  if (document.getElementById('src-aliexpress').checked) sources.push('aliexpress');
+  if (!sources.length) { alert('Please select at least one source'); return; }
+
+  var btn = document.getElementById('gen-btn');
+  btn.disabled = true;
+  btn.textContent = 'Searching…';
+
+  var status = document.getElementById('gen-status');
+  status.style.display = 'block';
+  status.innerHTML = '⏳ Searching ' + sources.join(', ') + ' for "<strong>' + query + '</strong>"…';
+
+  document.getElementById('gen-results-section').style.display = 'none';
+  document.getElementById('gen-tbody').innerHTML = '';
+  genSuggestions = [];
+
+  try {
+    var res = await fetch('/api/admin/generate-aliases', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({query: query, sources: sources})
+    });
+    var data = await res.json();
+
+    if (data.error) {
+      status.style.background = '#fff3e0';
+      status.style.borderColor = '#ffcc80';
+      status.style.color = '#e65100';
+      status.innerHTML = '⚠ Error: ' + data.error;
+      btn.disabled = false;
+      btn.textContent = 'Search & Generate';
+      return;
+    }
+
+    genSuggestions = data.suggestions || [];
+    var newCount = genSuggestions.filter(function(s) { return !s.exists; }).length;
+    var dupCount  = genSuggestions.filter(function(s) { return  s.exists; }).length;
+
+    status.style.background = '#e8f5e9';
+    status.style.borderColor = '#a5d6a7';
+    status.style.color = '#2e7d32';
+    status.innerHTML = '✓ Found <strong>' + genSuggestions.length + '</strong> suggestions — ' +
+      '<strong>' + newCount + '</strong> new, ' +
+      '<strong>' + dupCount  + '</strong> already in your system';
+
+    document.getElementById('gen-count-badge').textContent =
+      '(' + newCount + ' new, ' + dupCount + ' already saved)';
+
+    renderGenTable();
+    document.getElementById('gen-results-section').style.display = 'block';
+  } catch(e) {
+    status.style.background = '#fff3e0';
+    status.style.borderColor = '#ffcc80';
+    status.style.color = '#e65100';
+    status.innerHTML = '⚠ Request failed: ' + e.message;
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'Search & Generate';
+}
+
+function renderGenTable() {
+  var tbody = document.getElementById('gen-tbody');
+  if (!genSuggestions.length) {
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;color:#aaa">No suggestions returned</td></tr>';
+    return;
+  }
+  var html = '';
+  genSuggestions.forEach(function(s, i) {
+    var rowStyle = s.exists ? 'opacity:0.45' : '';
+    var checked  = s.exists ? '' : 'checked';
+    html += '<tr style="border-bottom:1px solid #f0f0f0;' + rowStyle + '">';
+    html += '<td style="padding:8px"><input type="checkbox" class="gen-chk" data-i="' + i + '" ' + checked + '></td>';
+    html += '<td style="padding:8px"><input type="text" class="gen-alias-input" data-i="' + i + '" value="' +
+              escHtml(s.alias) + '" style="border:1px solid #e0e0e0;border-radius:5px;padding:5px 8px;width:100%;font-size:13px"></td>';
+    html += '<td style="padding:8px"><input type="text" class="gen-mapsto-input" data-i="' + i + '" value="' +
+              escHtml(s.maps_to) + '" style="border:1px solid #e0e0e0;border-radius:5px;padding:5px 8px;width:100%;font-size:13px"></td>';
+    html += '<td style="padding:8px">' + sourceBadge(s.source) + '</td>';
+    html += '<td style="padding:8px;color:#777;font-size:12px">' + escHtml(s.reason || '') +
+              (s.exists ? ' <em style="color:#aaa">(already saved)</em>' : '') + '</td>';
+    html += '</tr>';
+  });
+  tbody.innerHTML = html;
+}
+
+function escHtml(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function selectAllGen(state) {
+  document.querySelectorAll('.gen-chk').forEach(function(cb) { cb.checked = state; });
+}
+
+async function saveSelected() {
+  var rows = document.querySelectorAll('.gen-chk');
+  var toSave = [];
+  rows.forEach(function(cb) {
+    if (!cb.checked) return;
+    var i = parseInt(cb.getAttribute('data-i'));
+    var alias   = document.querySelector('.gen-alias-input[data-i="' + i + '"]').value.trim().toLowerCase();
+    var maps_to = document.querySelector('.gen-mapsto-input[data-i="' + i + '"]').value.trim();
+    if (alias && maps_to) toSave.push({alias: alias, maps_to: maps_to});
+  });
+
+  if (!toSave.length) { alert('Nothing selected'); return; }
+
+  var btn = document.getElementById('gen-save-btn');
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+
+  try {
+    var res = await fetch('/api/admin/bulk-aliases', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({aliases: toSave})
+    });
+    var data = await res.json();
+    var msg = document.getElementById('gen-save-msg');
+    msg.style.display = 'block';
+    msg.innerHTML = '✓ Saved <strong>' + data.inserted + '</strong> aliases' +
+      (data.skipped ? ' (' + data.skipped + ' already existed)' : '') + '.';
+    setTimeout(function() { msg.style.display = 'none'; }, 4000);
+    // uncheck saved rows
+    document.querySelectorAll('.gen-chk:checked').forEach(function(cb) { cb.checked = false; });
+  } catch(e) {
+    alert('Save failed: ' + e.message);
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'Save Selected';
+}
+
+loadData();
+</script>
+</body>
+</html>
